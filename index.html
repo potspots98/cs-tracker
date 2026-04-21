@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloudmore — CS Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-authentication-library-for-js/2.38.0/msal-browser.min.js"></script>
+<style>
+  :root {
+    --oxford: #0C263F;
+    --oxford-light: #1a3a5c;
+    --green: #21D182;
+    --green-light: #e1f5ee;
+    --green-dark: #085041;
+    --purple-light: #EEEDFE;
+    --purple-dark: #26215C;
+    --red: #FF5353;
+    --red-light: #fde8e8;
+    --red-dark: #5c0d0d;
+    --amber: #FFCC54;
+    --amber-light: #fff3cd;
+    --amber-dark: #633806;
+    --blue-light: #E6F1FB;
+    --blue-dark: #0C447C;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.08);
+    --border-med: rgba(0,0,0,0.14);
+    --text: #0C263F;
+    --text-mid: #4a5568;
+    --text-muted: #8a9ab0;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  .header { background: var(--oxford); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: 'Sora', sans-serif; font-weight: 600; font-size: 16px; color: #fff; letter-spacing: -0.3px; display: flex; align-items: center; gap: 10px; }
+  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .header-user { font-size: 11px; color: rgba(255,255,255,0.55); }
+  .sync-btn { background: var(--green); color: var(--green-dark); border: none; border-radius: var(--radius-sm); padding: 7px 16px; font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity 0.15s; }
+  .sync-btn:hover { opacity: 0.88; }
+  .sync-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .save-indicator { font-size: 11px; color: rgba(255,255,255,0.45); }
+
+  .nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; }
+  .nav-tab { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-muted); border: none; background: none; padding: 14px 18px; cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--oxford); border-bottom-color: var(--oxford); }
+
+  .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  .login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 20px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px 48px; text-align: center; max-width: 420px; }
+  .login-logo { font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 600; color: var(--oxford); margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .login-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.6; }
+  .login-btn { background: var(--oxford); color: #fff; border: none; border-radius: var(--radius-sm); padding: 12px 28px; font-size: 14px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; width: 100%; transition: opacity 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .login-btn:hover { opacity: 0.88; }
+  .login-intro { font-size: 12px; color: var(--text-muted); margin-top: 14px; line-height: 1.6; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .stat-label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .stat-val { font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; color: var(--oxford); }
+  .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  .filter-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-label { font-size: 11px; font-weight: 500; color: var(--text-muted); margin-right: 4px; }
+  .filter-btn { font-size: 11px; font-weight: 500; padding: 4px 12px; border: 1px solid var(--border-med); border-radius: 20px; background: var(--surface); color: var(--text-mid); cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .filter-btn:hover { border-color: var(--oxford); color: var(--oxford); }
+  .filter-btn.active { background: var(--oxford); color: #fff; border-color: var(--oxford); }
+
+  .tier-bar { display: flex; align-items: center; gap: 10px; margin: 28px 0 12px; }
+  .t-badge { font-size: 11px; font-weight: 600; font-family: 'Sora', sans-serif; padding: 4px 12px; border-radius: 20px; }
+  .t-fire { background: var(--red); color: #fff; }
+  .t-amber { background: var(--amber); color: var(--amber-dark); }
+  .t-blue { background: var(--oxford); color: #fff; }
+  .t-label { font-size: 13px; font-weight: 500; color: var(--text-mid); }
+
+  .acct-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; transition: border-color 0.15s; }
+  .acct-card:hover { border-color: var(--border-med); }
+  .card-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; cursor: pointer; user-select: none; }
+  .card-head:hover { background: #fafbfc; }
+  .card-name { font-family: 'Sora', sans-serif; font-size: 14px; font-weight: 600; color: var(--oxford); margin-bottom: 5px; }
+  .card-meta { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .card-arr { font-size: 11px; color: var(--text-muted); margin-right: 4px; }
+  .chevron { color: var(--text-muted); font-size: 11px; transition: transform 0.2s; flex-shrink: 0; margin-left: 12px; }
+  .chevron.open { transform: rotate(180deg); }
+  .card-body { display: none; padding: 0 18px 18px; border-top: 1px solid var(--border); }
+  .card-body.open { display: block; }
+
+  .pill { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; font-family: 'Sora', sans-serif; padding: 2px 8px; border-radius: 20px; }
+  .p-both { background: var(--purple-light); color: var(--purple-dark); }
+  .p-am { background: var(--blue-light); color: var(--blue-dark); }
+  .p-cs { background: var(--green-light); color: var(--green-dark); }
+  .p-red { background: var(--red-light); color: var(--red-dark); }
+  .p-amber { background: var(--amber-light); color: var(--amber-dark); }
+  .p-green { background: var(--green-light); color: var(--green-dark); }
+  .p-gray { background: #f0f2f5; color: var(--text-mid); }
+  .p-cd { background: var(--green-light); color: var(--green-dark); }
+  .p-co { background: var(--blue-light); color: var(--blue-dark); }
+
+  .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 16px 0 12px; }
+  .col-title { font-size: 10px; font-weight: 600; font-family: 'Sora', sans-serif; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .col-text { font-size: 12px; color: var(--text-mid); line-height: 1.65; }
+
+  .hs-note { display: none; background: #e8faf3; border: 1px solid rgba(33,209,130,0.25); border-left: 3px solid var(--green); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; font-size: 12px; color: var(--text-mid); line-height: 1.65; }
+  .hs-note-header { font-size: 10px; font-weight: 600; font-family: 'Sora', sans-serif; color: var(--green-dark); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+  .hs-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+  .action-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .action-item:last-child { border-bottom: none; }
+  .action-check { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; cursor: pointer; accent-color: var(--green); }
+  .action-text { font-size: 13px; color: var(--text); line-height: 1.5; flex: 1; }
+  .action-text.done { text-decoration: line-through; color: var(--text-muted); }
+  .action-who { font-size: 10px; font-weight: 600; font-family: 'Sora', sans-serif; padding: 2px 7px; border-radius: 20px; background: var(--oxford); color: #fff; flex-shrink: 0; margin-top: 2px; }
+  .action-who.unassigned { background: #f0f2f5; color: var(--text-muted); }
+  .owner-select { font-size: 11px; padding: 2px 6px; border: 1px solid var(--border-med); border-radius: 4px; background: #f7f8fa; color: var(--text); flex-shrink: 0; font-family: 'DM Sans', sans-serif; cursor: pointer; }
+
+  .add-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .add-row input { flex: 1; min-width: 160px; font-size: 12px; padding: 7px 11px; border: 1px solid var(--border-med); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+  .add-row input:focus { outline: none; border-color: var(--oxford); background: var(--surface); }
+  .add-row select { font-size: 12px; padding: 7px 10px; border: 1px solid var(--border-med); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+  .add-btn { font-size: 12px; font-weight: 500; padding: 7px 14px; border: none; border-radius: var(--radius-sm); background: var(--oxford); color: #fff; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: opacity 0.15s; white-space: nowrap; }
+  .add-btn:hover { opacity: 0.85; }
+
+  .progress-wrap { margin-top: 14px; }
+  .progress-bar { height: 5px; background: #eef0f3; border-radius: 10px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 10px; background: var(--green); transition: width 0.3s; }
+  .progress-label { font-size: 11px; color: var(--text-muted); margin-top: 5px; }
+
+  .cadence-wrap { overflow-x: auto; }
+  .cadence-table { width: 100%; border-collapse: collapse; }
+  .cadence-table th { font-size: 11px; font-weight: 600; font-family: 'Sora', sans-serif; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 12px; border-bottom: 1px solid var(--border-med); text-align: left; white-space: nowrap; background: var(--surface); }
+  .cadence-table td { padding: 12px 12px; border-bottom: 1px solid var(--border); vertical-align: top; background: var(--surface); font-size: 13px; }
+  .cadence-table tr:last-child td { border-bottom: none; }
+  .cadence-table tr:hover td { background: #fafbfc; }
+  .update-field { width: 100%; font-size: 12px; padding: 7px 9px; border: 1px solid var(--border-med); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); resize: vertical; min-height: 52px; font-family: 'DM Sans', sans-serif; }
+  .update-field:focus { outline: none; border-color: var(--oxford); background: var(--surface); }
+  .save-note-btn { margin-top: 5px; font-size: 11px; font-weight: 500; padding: 4px 10px; border: 1px solid var(--border-med); border-radius: 4px; background: var(--surface); color: var(--text-mid); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+  .save-note-btn:hover { border-color: var(--oxford); color: var(--oxford); }
+  .saved-flash { font-size: 11px; color: var(--green-dark); margin-left: 8px; opacity: 0; transition: opacity 0.3s; font-weight: 500; }
+
+  .overall-progress-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 24px; }
+  .overall-progress-label { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .overall-progress-label span { font-size: 12px; color: var(--text-mid); font-weight: 500; }
+  .overall-progress-label strong { font-family: 'Sora', sans-serif; font-size: 14px; color: var(--oxford); }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--oxford); color: #fff; font-size: 12px; font-weight: 500; padding: 10px 18px; border-radius: var(--radius-sm); opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; display: flex; align-items: center; gap: 8px; }
+  .toast.show { opacity: 1; }
+  .toast-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+  @media (max-width: 768px) {
+    .main { padding: 20px 16px; }
+    .header { padding: 0 16px; }
+    .nav { padding: 0 16px; overflow-x: auto; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .card-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo"><div class="logo-dot"></div>Cloudmore CS Tracker</div>
+  <div class="header-right">
+    <span class="save-indicator" id="save-indicator"></span>
+    <span class="header-user" id="header-user"></span>
+    <button class="sync-btn" id="hs-sync-btn" onclick="syncHubSpot()" style="display:none;">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10.5 6A4.5 4.5 0 1 1 6 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Sync HubSpot
+    </button>
+  </div>
+</div>
+
+<div class="nav" id="main-nav" style="display:none;">
+  <button class="nav-tab active" onclick="switchTab('priority')">Priority engagement</button>
+  <button class="nav-tab" onclick="switchTab('cadence')">Account cadence</button>
+  <button class="nav-tab" onclick="switchTab('actions')">Customer actions</button>
+</div>
+
+<div class="main">
+  <div id="app-login" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo"><div class="logo-dot"></div>Cloudmore CS Tracker</div>
+      <div class="login-sub">Shared planning tool for customer success and account management. Sign in with your Cloudmore Microsoft account to continue.</div>
+      <button class="login-btn" onclick="signIn()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6.5" height="6.5" fill="#f25022"/><rect x="8.5" y="1" width="6.5" height="6.5" fill="#7fba00"/><rect x="1" y="8.5" width="6.5" height="6.5" fill="#00a4ef"/><rect x="8.5" y="8.5" width="6.5" height="6.5" fill="#ffb900"/></svg>
+        Sign in with Microsoft
+      </button>
+      <div class="login-intro">You will be asked to approve access on first sign-in. This is a Cloudmore internal tool — your Microsoft 365 credentials are used only for authentication.</div>
+    </div>
+  </div>
+
+  <div id="app-main" style="display:none;">
+    <div id="tab-priority" class="tab-pane active"></div>
+    <div id="tab-cadence" class="tab-pane"></div>
+    <div id="tab-actions" class="tab-pane"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="toast-dot"></span><span id="toast-msg">Saved</span></div>
+
+<script>
+const CLIENT_ID = '96d43396-1044-44f3-8551-a7c9f7a62489';
+const TENANT_ID = '0cc4f6a9-d96a-4508-b938-32386e1c44cf';
+const SP_SITE = 'cloudmore.sharepoint.com';
+const SP_SITE_PATH = '/sites/SalesTeam';
+const LIST_NAME = 'CSTrackerState';
+
+const msalConfig = {
+  auth: {
+    clientId: CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+    redirectUri: window.location.href.split('?')[0].split('#')[0],
+  },
+  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: false }
+};
+
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+const SCOPES = ['https://graph.microsoft.com/Sites.ReadWrite.All', 'User.Read'];
+
+let currentUser = null;
+let spSiteId = null;
+let spListId = null;
+let spItemId = null;
+let saveTimeout = null;
+
+const OWNERS = ['—','Nicola','Dyfed','Allister','Mark','Erkki','Martin','Niklas'];
+
+const ACCOUNTS = [
+  { id:'compunet', name:'CompuNet', arr:'USD 316K', renews:'6 Jun 26', days:52, term:'3-yr', health:'Neutral', res:'Both', first:'Commercial', tier:'act',
+    priority:'AM to call this week. CS preps utilisation snapshot. Zero proactive contact in 7 weeks despite 52-day renewal window.',
+    blocker:'No recent engagement data — absence of notes is itself a risk signal. Need to establish current sentiment before renewal conversation.',
+    opp:'3-yr contract up for renewal. If sentiment positive, explore tier upgrade given growth trajectory.',
+    cadence:'Monthly until renewed',
+    actions:[{id:'c1',text:'AM to book renewal call this week',owner:'Dyfed'},{id:'c2',text:'CS to prepare utilisation snapshot for AM',owner:'Nicola'},{id:'c3',text:'Confirm renewal terms and push for 3-yr extension',owner:'Dyfed'}]
+  },
+  { id:'pqr', name:'PQR BV', arr:'EUR 49K', renews:'31 May 26', days:46, term:'1-yr', health:'Neutral', res:'AM', first:'Commercial', tier:'act',
+    priority:'AM-led renewal call this week. Not in diary for 7 weeks. Healthy enough for clean renewal — do not let it slip.',
+    blocker:'No recent notes — call needed to surface any friction before renewal decision is made.',
+    opp:'Currently on 1-yr. Offer 3-yr with incentive at renewal — low-effort commercial uplift.',
+    cadence:'AM only',
+    actions:[{id:'p1',text:'AM to book renewal call',owner:'Dyfed'},{id:'p2',text:'Prepare 3-yr incentive proposal',owner:'Dyfed'}]
+  },
+  { id:'micromail', name:'Micromail', arr:'EUR 203K', renews:'Nov 26', days:205, term:'1-yr', health:'At-Risk', res:'Both', first:'CS dev', tier:'high',
+    priority:'CS to get confirmed fix date from Product for Teams Calling Plan SKUs and triennial SKU reporting. That date underpins the renewal conversation.',
+    blocker:'Teams Calling Plan SKUs billing incorrectly — monthly manual workaround. Multi-currency NI/IE mismatch making reports unusable for finance. ISMS security review pending since January.',
+    opp:'Approval/alerts enablement session once billing resolved would reduce risk and strengthen the renewal case.',
+    cadence:'Monthly CS + AM now',
+    actions:[{id:'m1',text:'Get Product fix date for Teams Calling Plan SKU billing',owner:'Allister'},{id:'m2',text:'Get Product fix date for triennial SKU reporting',owner:'Allister'},{id:'m3',text:'Chase ISMS committee review outcome',owner:'Mark'},{id:'m4',text:'AM to assess commercial risk and renewal strategy',owner:'Dyfed'},{id:'m5',text:'Schedule approval workflow enablement session (post-fix)',owner:'Nicola'}]
+  },
+  { id:'rsm', name:'RSM', arr:'USD 450K', renews:'Jul 27', days:455, term:'1-yr→3-yr', health:'Healthy', res:'Both', first:'Commercial', tier:'high',
+    priority:'Introduce Monique and re-establish proactive cadence — RSM flagged communication drop since team changes. AM to open 3-yr conversion. US/UK/Canada merger creates expansion opportunity.',
+    blocker:'Licence prerequisite validation delays forcing Partner Center use — audit log loss flagged. Future-dated renewal alignment still unresolved.',
+    opp:'Automation and self-service both Red/Amber. Singapore and Australia member firms exploring CSP Direct. Self-service drives 29% of activity at 6.7% adoption.',
+    cadence:'Bi-monthly CS + AM quarterly',
+    actions:[{id:'r1',text:'Introduce Monique to RSM contacts and schedule first call',owner:'Mark'},{id:'r2',text:'Provide update on prerequisite validation fix timeline',owner:'Allister'},{id:'r3',text:'Provide update on future-dated renewal alignment',owner:'Allister'},{id:'r4',text:'Ensure RSM has access to product webinars',owner:'Nicola'},{id:'r5',text:'AM to open 3-yr conversion conversation',owner:'Dyfed'},{id:'r6',text:'Support Singapore/Australia member firm expansion discussions',owner:'Mark'}]
+  },
+  { id:'brennan', name:'Brennan', arr:'USD 294K', renews:'Nov 26', days:223, term:'1-yr', health:'Healthy', res:'Both', first:'CS dev', tier:'high',
+    priority:'CS to resolve operational gaps before AM opens renewal/3-yr conversation. Broker-level approval workflow (Q2 roadmap) and billing report scheduling are key.',
+    blocker:'No approval workflow — manual billing reconciliation workarounds. Audit logs missing from/to quantity changes. Both partially on Q2 roadmap.',
+    opp:'High ARR on 1-yr. Once Q2 approval workflow lands, clean case for 3-yr conversion.',
+    cadence:'Monthly CS + AM pre-renewal',
+    actions:[{id:'b1',text:'Confirm Q2 approval workflow delivery date with Product',owner:'Allister'},{id:'b2',text:'Fix billing report scheduling issue (previous closed period)',owner:'Erkki'},{id:'b3',text:'Update Brennan on roadmap items',owner:'Nicola'},{id:'b4',text:'AM to open 3-yr conversation once Q2 workflow confirmed',owner:'Dyfed'}]
+  },
+  { id:'telia', name:'Telia Group', arr:'EUR 492K combined', renews:'Oct–Nov 26', days:199, term:'1-yr', health:'Healthy', res:'Both', first:'CS dev', tier:'high',
+    priority:'Two urgent items: (1) Acronis SOC April launch — dependency chain needs ownership mapping NOW. (2) Telia Finland approval process training — outstanding QBR action.',
+    blocker:'Finland: self-service changes overwriting renewal quantities. Excel vs Cloud Hub margin rounding mismatch. Lithuania: scripting Jira task pending. Org restructure handover risk.',
+    opp:'Finland moving to combined Devices + Licenses unit. Acronis SOC via Cloudmore as managed service platform. Spring on-site visit flagged.',
+    cadence:'Group quarterly review',
+    actions:[{id:'t1',text:'Map Acronis SOC dependency chain — URGENT',owner:'Mark'},{id:'t2',text:'Confirm April SOC launch timeline and Cloudmore platform requirements',owner:'Niklas'},{id:'t3',text:'Deliver Telia Finland approval process training (QBR action)',owner:'Nicola'},{id:'t4',text:'Investigate Excel vs Cloud Hub margin rounding — structured deep-dive',owner:'Martin'},{id:'t5',text:'Assign and complete Lithuania scripting Jira task',owner:'Erkki'},{id:'t6',text:'Introduce Julius/Jesper to Cloudmore team and platform',owner:'Mark'},{id:'t7',text:'Plan spring on-site visit',owner:'Mark'}]
+  },
+  { id:'bdo', name:'BDO Digital', arr:'USD 286K', renews:'Jun 28', days:801, term:'3-yr', health:'Neutral', res:'CS', first:'CS dev', tier:'high',
+    priority:'Maintain monthly cadence. Confirm no open blockers being silently tolerated. Focus on moving Neutral toward Healthy.',
+    blocker:'No recent QBR notes found. Neutral status needs to be understood and a clear improvement plan created.',
+    opp:'3-yr in place. Utilisation depth unknown — pricing, self-service, automation. Healthy account at renewal worth more commercially than Neutral.',
+    cadence:'Monthly',
+    actions:[{id:'bd1',text:'Run platform utilisation review — pricing, self-service, automation',owner:'Nicola'},{id:'bd2',text:'Identify what is driving Neutral status and create improvement plan',owner:'Nicola'}]
+  },
+  { id:'node4', name:'Node4', arr:'GBP 93K', renews:'Nov 26', days:201, term:'3-yr', health:'Neutral', res:'Both', first:'CS dev', tier:'manage',
+    priority:'Come back with clear Azure reporting positioning — Darren explicitly questioned value. CS needs a product roadmap answer before AM opens commercial upgrade conversation.',
+    blocker:'Azure subscription-level reporting absent — blocking adoption and migrations. Impersonation exposes partner margins. Subscription UX causing new sub creation instead of licence add.',
+    opp:'Run rate tracking £12–13m+ against £7.5m tier — major upgrade if confidence improves. HubSpot integration interest raised.',
+    cadence:'Monthly',
+    actions:[{id:'n1',text:'Get Product roadmap position on Azure subscription-level reporting',owner:'Martin'},{id:'n2',text:'Come back to Node4 with clear positioning — even if "not near term"',owner:'Mark'},{id:'n3',text:'Feed impersonation and subscription UX issues to Product',owner:'Mark'},{id:'n4',text:'Share API best practice examples from other partners',owner:'Nicola'},{id:'n5',text:'AM to review tiering and commercial upgrade options internally',owner:'Dyfed'}]
+  },
+  { id:'synoptek', name:'Synoptek', arr:'USD 71K', renews:'Dec 26', days:256, term:'1-yr', health:'Neutral', res:'CS', first:'CS dev', tier:'manage',
+    priority:'ZERO calls or meetings in last 3 months. Book a structured health check call immediately — this account is drifting toward at-risk.',
+    blocker:'No proactive engagement means no visibility of blockers. Attestation and remove-service tickets indicate recurring self-service friction. No QBR on record.',
+    opp:'Low bar to improve. Renews Dec 26, enough time to build confidence. First call: health check, surface frustrations, establish cadence.',
+    cadence:'Monthly',
+    actions:[{id:'sy1',text:'Book structured health check call — this week',owner:'Nicola'},{id:'sy2',text:'Establish regular meeting cadence',owner:'Nicola'},{id:'sy3',text:'Run platform utilisation review',owner:'Nicola'},{id:'sy4',text:'Schedule first QBR',owner:'Mark'}]
+  },
+  { id:'logicalis', name:'Logicalis', arr:'USD 96K', renews:'Sep 28', days:898, term:'3-yr', health:'Healthy', res:'CS', first:'CS dev', tier:'manage',
+    priority:'Confirm Nov 2025 billing sync ticket is resolved. Confirm SSO setup assistance (Cloud Centralis) is closed. Both had multiple customer chase-ups.',
+    blocker:'November billing report sync ticket — 60+ days open at last check. Cohen report delivery failures. Azure subscription visibility committed but unconfirmed.',
+    opp:'Long runway, 3-yr, healthy. Self-service and API utilisation not yet evidenced — enablement opportunity.',
+    cadence:'Monthly',
+    actions:[{id:'l1',text:'Confirm Nov billing sync ticket is resolved',owner:'Allister'},{id:'l2',text:'Confirm SSO setup (Cloud Centralis) ticket is closed',owner:'Allister'},{id:'l3',text:'Confirm Azure subscription visibility delivery',owner:'Erkki'},{id:'l4',text:'Fix ASD manager dropdown bug',owner:'Erkki'}]
+  },
+  { id:'it1', name:'iT1 Source', arr:'USD 166K', renews:'Aug 27', days:484, term:'3-yr', health:'Neutral', res:'CS', first:'CS dev', tier:'manage',
+    priority:'Not in diary for 7 weeks despite USD 166K ARR. No QBR notes on record. Book bi-monthly check-in and establish what the relationship looks like.',
+    blocker:'Unknown — no recent engagement means no visibility. Neutral health with no proactive contact is a slow drift risk.',
+    opp:'3-yr renewing Aug 27. First call: establish utilisation baseline for pricing, self-service, automation. Then build a success plan.',
+    cadence:'Bi-monthly',
+    actions:[{id:'i1',text:'Book first proactive check-in call',owner:'Nicola'},{id:'i2',text:'Run utilisation baseline review',owner:'Nicola'},{id:'i3',text:'Build account success plan',owner:'Mark'}]
+  },
+  { id:'xtium', name:'Xtium', arr:'USD 78K', renews:'Mar 27', days:344, term:'3-yr', health:'Healthy', res:'CS', first:'CS dev', tier:'manage',
+    priority:'Confirm Nov 2025 organisation user error was resolved. Healthy account — maintain bi-monthly cadence. Flag to AM at 120 days for renewal.',
+    blocker:'Organisation user error raised Nov 2025 — dev team could not identify from logs at the time. Status unknown.',
+    opp:'Healthy, 3-yr, good runway. Utilisation depth unknown — include platform usage review before renewal window opens.',
+    cadence:'Bi-monthly',
+    actions:[{id:'x1',text:'Confirm organisation user error (Nov 2025) is resolved',owner:'Allister'},{id:'x2',text:'Run platform utilisation review at next call',owner:'Nicola'},{id:'x3',text:'Flag to AM at 120 days (Nov 2026) for renewal',owner:'Mark'}]
+  },
+];
+
+let state = {};
+let activeFilterPriority = 'All';
+let activeFilterActions = 'All';
+
+function initState() {
+  ACCOUNTS.forEach(a => {
+    if (!state[a.id]) state[a.id] = { actions:{}, owners:{}, notes:'', hsNotes:'', lastSync:'' };
+    if (!state[a.id].owners) state[a.id].owners = {};
+    a.actions.forEach(ac => {
+      if (state[a.id].actions[ac.id] === undefined) state[a.id].actions[ac.id] = false;
+      if (!state[a.id].owners[ac.id]) state[a.id].owners[ac.id] = ac.owner || '—';
+    });
+  });
+}
+
+async function getToken() {
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length === 0) return null;
+  try {
+    const resp = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
+    return resp.accessToken;
+  } catch(e) {
+    const resp = await msalInstance.acquireTokenPopup({ scopes: SCOPES });
+    return resp.accessToken;
+  }
+}
+
+async function graphGet(url) {
+  const token = await getToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0${url}`, { headers: { Authorization: `Bearer ${token}` } });
+  return resp.json();
+}
+
+async function graphPatch(url, body) {
+  const token = await getToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0${url}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return resp.json();
+}
+
+async function graphPost(url, body) {
+  const token = await getToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0${url}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return resp.json();
+}
+
+async function getSiteAndList() {
+  if (spSiteId && spListId) return true;
+  try {
+    const site = await graphGet(`/sites/${SP_SITE}:${SP_SITE_PATH}`);
+    spSiteId = site.id;
+    const list = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${LIST_NAME}'`);
+    if (list.value && list.value.length > 0) {
+      spListId = list.value[0].id;
+    } else {
+      showToast('SharePoint list not found. Please create CSTrackerState list.');
+      return false;
+    }
+    return true;
+  } catch(e) { showToast('Could not connect to SharePoint.'); return false; }
+}
+
+async function loadFromSharePoint() {
+  const ok = await getSiteAndList();
+  if (!ok) return;
+  try {
+    const items = await graphGet(`/sites/${spSiteId}/lists/${spListId}/items?$expand=fields&$top=1&$orderby=fields/Created desc`);
+    if (items.value && items.value.length > 0) {
+      const item = items.value[0];
+      spItemId = item.id;
+      const raw = item.fields.stateJson;
+      if (raw) {
+        const loaded = JSON.parse(raw);
+        Object.assign(state, loaded);
+        initState();
+      }
+    }
+  } catch(e) { console.log('Load error', e); }
+}
+
+async function saveToSharePoint() {
+  const ok = await getSiteAndList();
+  if (!ok) return;
+  const ind = document.getElementById('save-indicator');
+  if (ind) ind.textContent = 'Saving...';
+  try {
+    const payload = { fields: { stateJson: JSON.stringify(state) } };
+    if (spItemId) {
+      await graphPatch(`/sites/${spSiteId}/lists/${spListId}/items/${spItemId}`, payload);
+    } else {
+      const created = await graphPost(`/sites/${spSiteId}/lists/${spListId}/items`, payload);
+      spItemId = created.id;
+    }
+    if (ind) { ind.textContent = 'Saved'; setTimeout(()=>{ if(ind) ind.textContent=''; }, 2000); }
+  } catch(e) { if (ind) ind.textContent = 'Save failed'; }
+}
+
+function scheduleSave() {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => saveToSharePoint(), 1200);
+}
+
+async function signIn() {
+  try {
+    await msalInstance.handleRedirectPromise();
+    let account = msalInstance.getAllAccounts()[0];
+    if (!account) {
+      const resp = await msalInstance.loginPopup({ scopes: SCOPES });
+      account = resp.account;
+    }
+    currentUser = account;
+    await onSignedIn();
+  } catch(e) { console.log('Login error', e); }
+}
+
+async function onSignedIn() {
+  const user = currentUser;
+  const name = user.name || user.username;
+  const el = document.getElementById('header-user');
+  if (el) el.textContent = name;
+  document.getElementById('app-login').style.display = 'none';
+  document.getElementById('main-nav').style.display = 'flex';
+  document.getElementById('app-main').style.display = 'block';
+  document.getElementById('hs-sync-btn').style.display = 'flex';
+  initState();
+  await loadFromSharePoint();
+  renderAll();
+}
+
+async function syncHubSpot() {
+  const btn = document.getElementById('hs-sync-btn');
+  btn.disabled = true;
+  showToast('Syncing from HubSpot...');
+  const ts = new Date().toLocaleString('en-GB', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  for (const acct of ACCOUNTS) {
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514', max_tokens: 300,
+          system: 'You are a CRM analyst. Summarise the current account status in 2-3 plain sentences. Focus on: latest activity, open blockers, next action outstanding. No markdown.',
+          messages: [{ role: 'user', content: `Account: ${acct.name}. Priority: ${acct.priority}. Blockers: ${acct.blocker}. What is the key focus right now?` }]
+        })
+      });
+      const data = await resp.json();
+      if (data.content && data.content[0]) {
+        state[acct.id].hsNotes = data.content[0].text;
+        state[acct.id].lastSync = ts;
+      }
+    } catch(e) {}
+  }
+  await saveToSharePoint();
+  btn.disabled = false;
+  showToast('HubSpot sync complete');
+  refreshHsNotes();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  const m = document.getElementById('toast-msg');
+  if (m) m.textContent = msg;
+  if (t) { t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+}
+
+function switchTab(id) {
+  document.querySelectorAll('.nav-tab').forEach((b,i) => b.classList.toggle('active', ['priority','cadence','actions'][i]===id));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+}
+
+function toggleCard(id) {
+  const body = document.getElementById('body-'+id);
+  const chev = document.getElementById('chev-'+id);
+  if (!body) return;
+  const open = body.classList.toggle('open');
+  if (chev) chev.classList.toggle('open', open);
+}
+
+function p(cls, text) { return `<span class="pill ${cls}">${text}</span>`; }
+function healthPill(h) { return h==='Healthy'?p('p-green',h):h==='At-Risk'?p('p-red',h):p('p-amber',h); }
+function resPill(r) { return r==='Both'?p('p-both',r):r==='AM'?p('p-am',r):p('p-cs',r); }
+function firstPill(f) { return f==='Commercial'?p('p-co','Commercial first'):p('p-cd','CS dev first'); }
+function ownerOpts(cur) { return OWNERS.map(o=>`<option value="${o}"${o===cur?' selected':''}>${o}</option>`).join(''); }
+
+function setOwner(prefix, acctId, actId, val) {
+  state[acctId].owners[actId] = val;
+  const other = prefix==='pri'?'act':'pri';
+  const otherSel = document.getElementById(`own-${other}-${acctId}-${actId}`);
+  if (otherSel) otherSel.value = val;
+  scheduleSave();
+}
+
+function toggleAction(prefix, acctId, actId) {
+  state[acctId].actions[actId] = !state[acctId].actions[actId];
+  const done = state[acctId].actions[actId];
+  ['pri','act'].forEach(pfx => {
+    const t = document.getElementById(`at-${pfx}-${acctId}-${actId}`);
+    const c = document.getElementById(`cb-${pfx}-${acctId}-${actId}`);
+    if (t) t.classList.toggle('done', done);
+    if (c) c.checked = done;
+  });
+  scheduleSave();
+  refreshStats();
+  refreshBadges();
+}
+
+function addAction(prefix, acctId) {
+  const inp = document.getElementById(`new-txt-${prefix}-${acctId}`);
+  const ownSel = document.getElementById(`new-own-${prefix}-${acctId}`);
+  const text = inp.value.trim();
+  if (!text) return;
+  const id = 'c'+Date.now();
+  const owner = ownSel ? ownSel.value : '—';
+  ACCOUNTS.find(a=>a.id===acctId).actions.push({id, text, owner});
+  state[acctId].actions[id] = false;
+  state[acctId].owners[id] = owner;
+  inp.value = '';
+  ['pri','act'].forEach(pfx => renderActionList(pfx, acctId));
+  scheduleSave();
+  refreshStats();
+  refreshBadges();
+  applyFilter();
+}
+
+function renderActionList(prefix, acctId) {
+  const container = document.getElementById(`alist-${prefix}-${acctId}`);
+  if (!container) return;
+  const acct = ACCOUNTS.find(a=>a.id===acctId);
+  container.innerHTML = '';
+  acct.actions.forEach(ac => {
+    const done = state[acctId].actions[ac.id] || false;
+    const owner = state[acctId].owners[ac.id] || ac.owner || '—';
+    const div = document.createElement('div');
+    div.className = 'action-item';
+    div.id = `ai-${prefix}-${acctId}-${ac.id}`;
+    div.innerHTML = `<input type="checkbox" id="cb-${prefix}-${acctId}-${ac.id}" class="action-check"${done?' checked':''} onchange="toggleAction('${prefix}','${acctId}','${ac.id}')">
+      <span id="at-${prefix}-${acctId}-${ac.id}" class="action-text${done?' done':''}">${ac.text}</span>
+      <select id="own-${prefix}-${acctId}-${ac.id}" class="owner-select" onchange="setOwner('${prefix}','${acctId}','${ac.id}',this.value)">${ownerOpts(owner)}</select>`;
+    container.appendChild(div);
+  });
+}
+
+function applyFilter() {
+  ACCOUNTS.forEach(a => {
+    a.actions.forEach(ac => {
+      const owner = state[a.id].owners[ac.id] || ac.owner || '—';
+      ['pri','act'].forEach(pfx => {
+        const el = document.getElementById(`ai-${pfx}-${a.id}-${ac.id}`);
+        if (!el) return;
+        const filt = pfx==='pri' ? activeFilterPriority : activeFilterActions;
+        el.style.display = (filt==='All' || owner===filt) ? 'flex' : 'none';
+      });
+    });
+  });
+}
+
+function setFilter(owner, tab) {
+  if (tab==='actions') { activeFilterActions=owner; document.querySelectorAll('.fb-act').forEach(b=>b.classList.toggle('active',b.dataset.o===owner)); }
+  else { activeFilterPriority=owner; document.querySelectorAll('.fb-pri').forEach(b=>b.classList.toggle('active',b.dataset.o===owner)); }
+  applyFilter();
+}
+
+function refreshStats() {
+  let total=0,done=0;
+  ACCOUNTS.forEach(a=>{ a.actions.forEach(ac=>{ total++; if(state[a.id]&&state[a.id].actions[ac.id]) done++; }); });
+  const pct = total>0?Math.round(done/total*100):0;
+  const sd=document.getElementById('s-done'); if(sd) sd.textContent=done;
+  const st=document.getElementById('s-total'); if(st) st.textContent=total;
+  const sp=document.getElementById('s-pct'); if(sp) sp.textContent=pct+'%';
+  const pb=document.getElementById('s-pbar'); if(pb) pb.style.width=pct+'%';
+}
+
+function refreshBadges() {
+  ACCOUNTS.forEach(a=>{
+    const doneCount=a.actions.filter(ac=>state[a.id]&&state[a.id].actions[ac.id]).length;
+    const pct=Math.round(doneCount/a.actions.length*100);
+    ['pri','act'].forEach(pfx=>{
+      const b=document.getElementById(`badge-${pfx}-${a.id}`); if(b) b.textContent=`${doneCount}/${a.actions.length} done`;
+      const bar=document.getElementById(`pbar-${pfx}-${a.id}`); if(bar) bar.style.width=pct+'%';
+    });
+  });
+}
+
+function saveNotes(acctId) {
+  const ta=document.getElementById('notes-'+acctId); if(!ta) return;
+  state[acctId].notes=ta.value;
+  scheduleSave();
+  const fl=document.getElementById('fl-'+acctId); if(fl){fl.style.opacity=1;setTimeout(()=>fl.style.opacity=0,2000);}
+}
+
+function refreshHsNotes() {
+  ACCOUNTS.forEach(a=>{
+    const el=document.getElementById('hs-'+a.id); if(!el) return;
+    const notes=state[a.id]&&state[a.id].hsNotes;
+    if(notes){
+      el.innerHTML=`<div class="hs-note-header"><span class="hs-dot"></span>Latest from HubSpot &nbsp;&middot;&nbsp; ${state[a.id].lastSync||''}</div>${notes}`;
+      el.style.display='block';
+    }
+  });
+}
+
+function filterBarHtml(cls) {
+  return `<div class="filter-bar"><span class="filter-label">Owner:</span>${['All',...OWNERS.filter(o=>o!=='—')].map(o=>`<button class="filter-btn ${cls}${o==='All'?' active':''}" data-o="${o}" onclick="setFilter('${o}','${cls==='fb-act'?'actions':'priority'}')">${o}</button>`).join('')}</div>`;
+}
+
+function renderPriority() {
+  const tiers=[{id:'act',badge:'t-fire',label:'Act now',desc:'Renewing within 60 days'},{id:'high',badge:'t-amber',label:'High value — protect',desc:'Large ARR, renewal within 12 months'},{id:'manage',badge:'t-blue',label:'Manage actively',desc:'CS-led structured cadence'}];
+  let html=`<div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Accounts in scope</div><div class="stat-val">${ACCOUNTS.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Act now</div><div class="stat-val">${ACCOUNTS.filter(a=>a.tier==='act').length}</div><div class="stat-sub">Renewing &lt;60 days</div></div>
+    <div class="stat-card"><div class="stat-label">High value</div><div class="stat-val">${ACCOUNTS.filter(a=>a.tier==='high').length}</div></div>
+    <div class="stat-card"><div class="stat-label">Manage actively</div><div class="stat-val">${ACCOUNTS.filter(a=>a.tier==='manage').length}</div></div>
+  </div>${filterBarHtml('fb-pri')}`;
+  tiers.forEach(tier=>{
+    const accts=ACCOUNTS.filter(a=>a.tier===tier.id);
+    html+=`<div class="tier-bar"><span class="t-badge ${tier.badge}">${tier.label}</span><span class="t-label">${tier.desc}</span></div>`;
+    accts.forEach(a=>{
+      const doneCount=a.actions.filter(ac=>state[a.id]&&state[a.id].actions[ac.id]).length;
+      const pct=Math.round(doneCount/a.actions.length*100);
+      html+=`<div class="acct-card">
+        <div class="card-head" onclick="toggleCard('pri-${a.id}')">
+          <div><div class="card-name">${a.name}</div>
+          <div class="card-meta"><span class="card-arr">${a.arr} &nbsp;&middot;&nbsp; renews ${a.renews}</span>${resPill(a.res)} ${healthPill(a.health)} ${firstPill(a.first)} <span class="pill p-gray" id="badge-pri-${a.id}">${doneCount}/${a.actions.length} done</span></div></div>
+          <span class="chevron" id="chev-pri-${a.id}">&#9660;</span>
+        </div>
+        <div class="card-body" id="body-pri-${a.id}">
+          <div class="card-grid">
+            <div><div class="col-title">Priority action</div><div class="col-text">${a.priority}</div></div>
+            <div><div class="col-title">Blockers</div><div class="col-text">${a.blocker}</div></div>
+            <div><div class="col-title">Opportunity</div><div class="col-text">${a.opp}</div></div>
+          </div>
+          <div id="hs-${a.id}" class="hs-note"></div>
+          <div class="divider"></div>
+          <div class="col-title">Actions</div>
+          <div id="alist-pri-${a.id}"></div>
+          <div class="add-row">
+            <input id="new-txt-pri-${a.id}" placeholder="Add an action..." onkeydown="if(event.key==='Enter')addAction('pri','${a.id}')">
+            <select id="new-own-pri-${a.id}">${ownerOpts('—')}</select>
+            <button class="add-btn" onclick="addAction('pri','${a.id}')">+ Add</button>
+          </div>
+          <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" id="pbar-pri-${a.id}" style="width:${pct}%"></div></div>
+          <div class="progress-label">${pct}% complete &nbsp;&middot;&nbsp; ${doneCount} of ${a.actions.length} done</div></div>
+        </div>
+      </div>`;
+    });
+  });
+  document.getElementById('tab-priority').innerHTML=html;
+  ACCOUNTS.forEach(a=>renderActionList('pri',a.id));
+  refreshHsNotes();
+}
+
+function renderCadence() {
+  const sortOrder={'Both':0,'AM':1,'CS':2};
+  const tiers=[{id:'act',badge:'t-fire',label:'Act now'},{id:'high',badge:'t-amber',label:'High value — protect'},{id:'manage',badge:'t-blue',label:'Manage actively'}];
+  let html='';
+  tiers.forEach(tier=>{
+    const accts=[...ACCOUNTS.filter(a=>a.tier===tier.id)].sort((a,b)=>sortOrder[a.res]-sortOrder[b.res]);
+    html+=`<div class="tier-bar"><span class="t-badge ${tier.badge}">${tier.label}</span></div>
+    <div class="cadence-wrap"><table class="cadence-table">
+    <thead><tr><th>Account</th><th>ARR</th><th>Resource</th><th>Renews</th><th>Cadence</th><th>First focus</th><th>Updates &amp; notes</th></tr></thead><tbody>`;
+    accts.forEach(a=>{
+      const notes=state[a.id]?state[a.id].notes||'':'';
+      html+=`<tr>
+        <td><strong style="font-family:'Sora',sans-serif;font-size:13px;">${a.name}</strong></td>
+        <td><span style="font-size:12px;color:var(--text-muted);">${a.arr}</span></td>
+        <td>${resPill(a.res)}</td>
+        <td><span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">${a.renews}</span></td>
+        <td><span style="font-size:12px;color:var(--text-muted);">${a.cadence}</span></td>
+        <td>${firstPill(a.first)}</td>
+        <td>
+          <textarea id="notes-${a.id}" class="update-field" placeholder="Log call outcomes, decisions, next steps...">${notes}</textarea>
+          <div style="display:flex;align-items:center;">
+            <button class="save-note-btn" onclick="saveNotes('${a.id}')">Save</button>
+            <span id="fl-${a.id}" class="saved-flash">&#10003; Saved</span>
+          </div>
+        </td>
+      </tr>`;
+    });
+    html+='</tbody></table></div>';
+  });
+  document.getElementById('tab-cadence').innerHTML=html;
+}
+
+function renderActions() {
+  let total=0,done=0;
+  ACCOUNTS.forEach(a=>{a.actions.forEach(ac=>{total++;if(state[a.id]&&state[a.id].actions[ac.id])done++;});});
+  const pct=total>0?Math.round(done/total*100):0;
+  const tiers=[{id:'act',badge:'t-fire',label:'Act now'},{id:'high',badge:'t-amber',label:'High value — protect'},{id:'manage',badge:'t-blue',label:'Manage actively'}];
+  let html=`<div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Total actions</div><div class="stat-val" id="s-total">${total}</div></div>
+    <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-val" id="s-done">${done}</div></div>
+    <div class="stat-card"><div class="stat-label">% complete</div><div class="stat-val" id="s-pct">${pct}%</div></div>
+    <div class="stat-card"><div class="stat-label">Accounts</div><div class="stat-val">${ACCOUNTS.length}</div></div>
+  </div>
+  <div class="overall-progress-bar">
+    <div class="overall-progress-label"><span>Overall progress</span><strong>${pct}%</strong></div>
+    <div class="progress-bar" style="height:8px;"><div class="progress-fill" id="s-pbar" style="width:${pct}%"></div></div>
+  </div>${filterBarHtml('fb-act')}`;
+  tiers.forEach(tier=>{
+    const accts=ACCOUNTS.filter(a=>a.tier===tier.id);
+    html+=`<div class="tier-bar"><span class="t-badge ${tier.badge}">${tier.label}</span></div>`;
+    accts.forEach(a=>{
+      const doneCount=a.actions.filter(ac=>state[a.id]&&state[a.id].actions[ac.id]).length;
+      html+=`<div class="acct-card">
+        <div class="card-head" onclick="toggleCard('act-${a.id}')">
+          <div><div class="card-name">${a.name}</div>
+          <div class="card-meta"><span class="card-arr">${a.arr}</span>${resPill(a.res)} ${healthPill(a.health)} <span class="pill p-gray" id="badge-act-${a.id}">${doneCount}/${a.actions.length} done</span></div></div>
+          <span class="chevron" id="chev-act-${a.id}">&#9660;</span>
+        </div>
+        <div class="card-body" id="body-act-${a.id}">
+          <div id="alist-act-${a.id}"></div>
+          <div class="add-row">
+            <input id="new-txt-act-${a.id}" placeholder="Add an action..." onkeydown="if(event.key==='Enter')addAction('act','${a.id}')">
+            <select id="new-own-act-${a.id}">${ownerOpts('—')}</select>
+            <button class="add-btn" onclick="addAction('act','${a.id}')">+ Add</button>
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+  document.getElementById('tab-actions').innerHTML=html;
+  ACCOUNTS.forEach(a=>renderActionList('act',a.id));
+}
+
+function renderAll() {
+  renderPriority();
+  renderCadence();
+  renderActions();
+  applyFilter();
+}
+
+async function init() {
+  await msalInstance.handleRedirectPromise();
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    currentUser = accounts[0];
+    await onSignedIn();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
